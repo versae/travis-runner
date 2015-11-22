@@ -8,13 +8,13 @@ import yaml
 
 
 @begin.start
-def main(config='.travis.yml', destdir='.'):
+def main(config='.travis.yml', destdir='.', full_setup=False):
     config = yaml.load(open(config))
     envs = []
-    language_setup(config, envs)
+    language_setup(config, envs, full_setup=full_setup)
     envs = itertools.chain(*[setup_matrix_env(config, env) for env in envs])
     for i, env in enumerate(envs):
-        setup_system_env(env)
+        setup_system_env(env, full_setup=full_setup)
         setup_global_env(config, env)
         setup_addon_env(config, env)
         build_steps(config, env)
@@ -66,20 +66,22 @@ def listify(arg):
 
 
 def apt_get(*packages):
-    return ('apt-get update && apt-get install --no-install-recommends --yes'
+    return ('apt-get -qq -y update '
+            '&& apt-get -qq install --no-install-recommends --yes'
             '  {}'.format(' '.join(packages)))
 
 
-def setup_system_env(env):
+def setup_system_env(env, full_setup=False):
+    setup = []
     proxy = os.environ.get('http_proxy')
     if proxy is not None:
-        env.insert(
-            0, 'echo "Acquire::http::Proxy \\"{}\\";" > /etc/apt/apt.conf'
+        setup.append('export http_proxy={}'.format(proxy))
+        setup.append(
+            'echo "Acquire::http::Proxy \\"{}\\";" > /etc/apt/apt.conf'
             .format(proxy))
-        env.insert(0, 'export http_proxy={}'.format(proxy))
-    env.insert(0, 'set -o errexit')
-    env.insert(0, 'set -o pipefail')
-    env.append(apt_get('sudo'))
+    setup.append('set -o pipefail')
+    setup.append('set -o errexit')
+    env[0:0] = setup
 
 
 def setup_global_env(config, env):
@@ -201,21 +203,44 @@ def setup_python(config, envs):
     for version in listify(config.get('python', ['2.7'])):
         setup = []
         envs.append(setup)
+        # full setup includes pyenv
+        setup.append(apt_get(
+            'python{}-dev'.format(".".join(version.split(".")[:2]))
+        ))
+        setup.append('export PYTHON_VERSION={}'.format(version))
+        setup.append('export PYTHON_PIP_VERSION=7.1.2')
+        setup.append(
+            'curl -SL "https://raw.githubusercontent.com/yyuu/'
+            'pyenv-installer/master/bin/pyenv-installer" | bash')
+        setup.append('export PATH="$HOME/.pyenv/bin:$PATH"')
+        setup.append('pyenv init -')
+        setup.append('pyenv virtualenv-init -')
+        # setup.append('exec $SHELL')
+        setup.append('pyenv install {}'.format(version))
+        setup.append('pyenv rehash')
+        setup.append('pyenv local {}'.format(version))
+        setup.append(
+            'curl -SL "https://bootstrap.pypa.io/get-pip.py" '
+            '| python')
+        setup.append(
+            'pip install -q --no-cache-dir --upgrade '
+            'pip==$PYTHON_PIP_VERSION')
 
+        setup.append('pip install -q --no-cache-dir virtualenv')
+        setup.append('virtualenv /tmp/virtualenv')
+        setup.append('source /tmp/virtualenv/bin/activate')
         setup.append(
-            apt_get('python-setuptools', 'python-software-properties'))
-        setup.append('apt-add-repository --yes ppa:fkrull/deadsnakes')
-        setup.append(apt_get('python{}-dev'.format(version)))
-        setup.append('easy_install virtualenv')
-        setup.append(
-            'virtualenv --python python{} /tmp/virtualenv'.format(version))
-        setup.append('. /tmp/virtualenv/bin/activate')
+            'pip install -q'
+            ' requests[security]'
+            # ' pyOpenSSL==0.13.1 ndg-httpsclient==0.3.2 pyasn1==0.1.7'  # SNI
+            ' mock pytest nose wheel')
 
 
 def build_steps(config, env):
     _sudo = config.get('sudo', True)
     env.append('cp -ar /src /work')
     env.append('cd /work')
+    env.append('set +e')  # allow lines to fail
     for step in ('before_install', 'install', 'before_script', 'script'):
         for command in listify(config.get(step, [])):
             if not _sudo and step in ('before_script', 'script'):

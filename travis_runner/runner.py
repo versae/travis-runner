@@ -27,7 +27,7 @@ def tempdir(debug=False):
 
 @begin.start
 @begin.logging
-def main(debug=False, dry_run=False):
+def main(debug=False, dry_run=False, image="ubuntu:precise"):
     failed = True
 
     with tempdir(debug) as _dir:
@@ -49,8 +49,8 @@ def main(debug=False, dry_run=False):
                     'docker run {0} --rm -e http_proxy=$http_proxy'
                     ' -v $(pwd):/src'
                     ' -v {1}:/{1}'
-                    ' ubuntu:precise bash -x {2}'.format(
-                        link_arg, _dir, env), shell=True)
+                    ' {2} bash -x {3}'.format(
+                        link_arg, _dir, image, env), shell=True)
                 failed = False
             except subprocess.CalledProcessError:
                 if links:
