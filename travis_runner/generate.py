@@ -8,13 +8,13 @@ import yaml
 
 
 @begin.start
-def main(config='.travis.yml', destdir='.', full_setup=False):
+def main(config='.travis.yml', destdir='.'):
     config = yaml.load(open(config))
     envs = []
-    language_setup(config, envs, full_setup=full_setup)
+    language_setup(config, envs)
     envs = itertools.chain(*[setup_matrix_env(config, env) for env in envs])
     for i, env in enumerate(envs):
-        setup_system_env(env, full_setup=full_setup)
+        setup_system_env(env)
         setup_global_env(config, env)
         setup_addon_env(config, env)
         build_steps(config, env)
@@ -71,7 +71,7 @@ def apt_get(*packages):
             '  {}'.format(' '.join(packages)))
 
 
-def setup_system_env(env, full_setup=False):
+def setup_system_env(env):
     setup = []
     proxy = os.environ.get('http_proxy')
     if proxy is not None:
