@@ -37,11 +37,11 @@ def use_pip_cache():
 
 @begin.start
 @begin.logging
-def main(debug=False, dry_run=False, image="ubuntu:precise"):
+def main(debug=False, dry_run=False, image="ubuntu:precise", user=None):
     failed = True
 
     with tempdir(debug) as _dir:
-        generate.main(destdir=_dir)
+        generate.main(destdir=_dir, user=user)
         if dry_run:
             return
 

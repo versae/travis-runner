@@ -8,7 +8,7 @@ import yaml
 
 
 @begin.start
-def main(config='.travis.yml', destdir='.'):
+def main(config='.travis.yml', destdir='.', user=None):
     config = yaml.load(open(config))
     envs = []
     language_setup(config, envs)
@@ -17,7 +17,7 @@ def main(config='.travis.yml', destdir='.'):
         setup_system_env(env)
         setup_global_env(config, env)
         setup_addon_env(config, env)
-        build_steps(config, env)
+        build_steps(config, env, user)
         sh_name = os.path.join(destdir, '.travis-runner-{}.sh'.format(i))
         with open(sh_name, 'w') as f:
             f.write(
@@ -236,14 +236,22 @@ def setup_python(config, envs):
             ' mock pytest nose wheel')
 
 
-def build_steps(config, env):
+def build_steps(config, env, user):
     _sudo = config.get('sudo', True)
-    env.append('cp -ar /src /work')
-    env.append('cd /work')
+    if not user:
+        user = 'nobody'
+        work_dir = '/work'
+    else:
+        work_dir = '/home/{}/work'.format(user)
+    env.append('cp -ar /src {}'.format(work_dir))
+    env.append('cd {}'.format(work_dir))
+    env.append('chown -R {} {}'.format(user, work_dir))
     env.append('set +e')  # allow lines to fail
     for step in ('before_install', 'install', 'before_script', 'script'):
         for command in listify(config.get(step, [])):
             if not _sudo and step in ('before_script', 'script'):
-                env.append('chown -R nobody /work')
-                command = 'sudo -E -u nobody env PATH=$PATH {}'.format(command)
+                if user == 'nobody':
+                    command = 'sudo -E -u nobody env PATH=$PATH {}'.format(
+                        command)
+                    env.append('chown -R {} {}'.format(user, work_dir))
             env.append(command)
