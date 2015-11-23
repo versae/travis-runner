@@ -225,15 +225,14 @@ def setup_python(config, envs):
         setup.append(
             'pip install -q --no-cache-dir --upgrade '
             'pip==$PYTHON_PIP_VERSION')
-
+        setup.append(
+            'pip install -q --no-cache-dir'
+            # ' requests[security]'
+            ' pyOpenSSL==0.13.1 ndg-httpsclient==0.3.3 pyasn1==0.1.7'  # SNI
+            ' mock pytest nose wheel')
         setup.append('pip install -q --no-cache-dir virtualenv')
         setup.append('virtualenv /tmp/virtualenv')
         setup.append('source /tmp/virtualenv/bin/activate')
-        setup.append(
-            'pip install -q'
-            ' requests[security]'
-            # ' pyOpenSSL==0.13.1 ndg-httpsclient==0.3.2 pyasn1==0.1.7'  # SNI
-            ' mock pytest nose wheel')
 
 
 def build_steps(config, env, user):
@@ -250,8 +249,7 @@ def build_steps(config, env, user):
     for step in ('before_install', 'install', 'before_script', 'script'):
         for command in listify(config.get(step, [])):
             if not _sudo and step in ('before_script', 'script'):
-                if user == 'nobody':
-                    command = 'sudo -E -u nobody env PATH=$PATH {}'.format(
-                        command)
-                    env.append('chown -R {} {}'.format(user, work_dir))
+                command = 'sudo -E -u {} env PATH=$PATH {}'.format(
+                    user, command)
+                env.append('chown -R {} {}'.format(user, work_dir))
             env.append(command)
