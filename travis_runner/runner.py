@@ -37,7 +37,9 @@ def use_pip_cache():
 
 @begin.start
 @begin.logging
-def main(debug=False, dry_run=False, image="ubuntu:precise", user=None):
+def main(debug=False, dry_run=False, image=None, user=None):
+    image = image or os.environ.get('TRAVIS_RUNNER_IMAGE', 'ubuntu:precise')
+    user = user or os.environ.get('TRAVIS_RUNNER_USER')
     failed = True
 
     with tempdir(debug) as _dir:
